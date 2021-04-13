@@ -105,10 +105,10 @@ constexpr const char* set = "Set";
 
 namespace power
 {
-const static constexpr char* busname = "xyz.openbmc_project.State.Host";
-const static constexpr char* interface = "xyz.openbmc_project.State.Host";
-const static constexpr char* path = "/xyz/openbmc_project/state/host0";
-const static constexpr char* property = "CurrentHostState";
+const static constexpr char* busname = "xyz.openbmc_project.State.Chassis";
+const static constexpr char* interface = "xyz.openbmc_project.State.Chassis";
+const static constexpr char* path = "/xyz/openbmc_project/state/chassis0";
+const static constexpr char* property = "CurrentPowerState";
 } // namespace power
 namespace post
 {
