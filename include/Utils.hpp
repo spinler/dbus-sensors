@@ -327,3 +327,29 @@ std::optional<double> readFile(const std::string& thresholdFile,
                                const double& scaleFactor);
 void setupManufacturingModeMatch(sdbusplus::asio::connection& conn);
 bool getManufacturingMode();
+
+// Lets users register a function to call when the power state
+// changes using the addCallback() function.
+class PowerStateCallback
+{
+  public:
+    using Callback = std::function<void(bool)>;
+
+    PowerStateCallback() = default;
+    ~PowerStateCallback() = default;
+
+    static void addCallback(Callback& callback)
+    {
+        callbacks.push_back(callback);
+    }
+
+    static void changed(bool powerState)
+    {
+        std::for_each(
+            callbacks.begin(), callbacks.end(),
+            [powerState](const auto& callback) { callback(powerState); });
+    }
+
+  private:
+    static std::vector<Callback> callbacks;
+};
