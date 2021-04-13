@@ -214,10 +214,7 @@ struct Sensor
                              const std::string& label = std::string(),
                              size_t thresholdSize = 0)
     {
-        if (readState == PowerState::on || readState == PowerState::biosPost)
-        {
-            setupPowerMatch(conn);
-        }
+        setupPowerMatch(conn);
 
         createAssociation(association, configurationPath);
 

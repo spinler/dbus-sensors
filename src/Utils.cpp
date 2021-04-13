@@ -42,6 +42,8 @@ static bool manufacturingMode = false;
 static std::unique_ptr<sdbusplus::bus::match::match> powerMatch = nullptr;
 static std::unique_ptr<sdbusplus::bus::match::match> postMatch = nullptr;
 
+std::vector<PowerStateCallback::Callback> PowerStateCallback::callbacks;
+
 /**
  * return the contents of a file
  * @param[in] hwmonFile - the path to the file to read
@@ -349,6 +351,7 @@ void setupPowerMatch(const std::shared_ptr<sdbusplus::asio::connection>& conn)
                 {
                     timer.cancel();
                     powerStatusOn = false;
+                    PowerStateCallback::changed(powerStatusOn);
                     return;
                 }
                 // on comes too quickly
@@ -364,6 +367,7 @@ void setupPowerMatch(const std::shared_ptr<sdbusplus::asio::connection>& conn)
                         return;
                     }
                     powerStatusOn = true;
+                    PowerStateCallback::changed(powerStatusOn);
                 });
             }
         });
