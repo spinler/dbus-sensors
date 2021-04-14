@@ -246,7 +246,7 @@ void createSensors(
                     sensor = std::make_shared<HwmonTempSensor>(
                         *hwmonFile, sensorType, objectServer, dbusConnection,
                         io, sensorName, std::move(sensorThresholds), pollRate,
-                        *interfacePath, readState);
+                        *interfacePath, readState, bus, addr);
                     sensor->setupRead();
                 }
                 // Looking for keys like "Name1" for temp2_input,
@@ -286,10 +286,10 @@ void createSensors(
                         auto& sensor = sensors[sensorName];
                         sensor = nullptr;
                         sensor = std::make_shared<HwmonTempSensor>(
-                            *hwmonFile, sensorType, objectServer,
-                            dbusConnection, io, sensorName,
-                            std::move(thresholds), pollRate, *interfacePath,
-                            readState);
+                               *hwmonFile, sensorType, objectServer,
+                               dbusConnection, io, sensorName,
+                               std::move(thresholds), pollRate, *interfacePath,
+                               readState, bus, addr);
                         sensor->setupRead();
                     }
                 }

@@ -20,7 +20,7 @@ class HwmonTempSensor :
                     std::vector<thresholds::Threshold>&& thresholds,
                     const float pollRate,
                     const std::string& sensorConfiguration,
-                    const PowerState powerState);
+                    const PowerState powerState, size_t bus, size_t address);
     ~HwmonTempSensor() override;
     void setupRead(void);
 
@@ -31,6 +31,8 @@ class HwmonTempSensor :
     boost::asio::streambuf readBuf;
     std::string path;
     unsigned int sensorPollMs;
+    size_t bus;
+    size_t address;
 
     void handleResponse(const boost::system::error_code& err);
     void restartRead();
