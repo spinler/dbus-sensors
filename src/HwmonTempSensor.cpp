@@ -40,6 +40,8 @@
 // For IIO RAW sensors we get a raw_value, an offset, and scale to compute
 // the value = (raw_value + offset) * scale
 
+std::vector<std::pair<size_t, size_t>> HwmonTempSensor::failedDevices{};
+
 HwmonTempSensor::HwmonTempSensor(
     const std::string& path, const std::string& objectType,
     sdbusplus::asio::object_server& objectServer,
@@ -161,6 +163,7 @@ void HwmonTempSensor::restartRead()
 void HwmonTempSensor::handleResponse(const boost::system::error_code& err,
                                      size_t bytesRead)
 {
+    errorCode = err;
     if ((err == boost::system::errc::bad_file_descriptor) ||
         (err == boost::asio::error::misc_errors::not_found))
     {
@@ -177,7 +180,12 @@ void HwmonTempSensor::handleResponse(const boost::system::error_code& err,
                                                      nvalue);
         if (ret.ec != std::errc())
         {
-            incrementError();
+            if (incrementError())
+            {
+                errorCode = boost::system::errc::make_error_code(
+                    boost::system::errc::invalid_argument);
+                createEventLog();
+            }
         }
         else
         {
@@ -186,7 +194,10 @@ void HwmonTempSensor::handleResponse(const boost::system::error_code& err,
     }
     else
     {
-        incrementError();
+        if (incrementError())
+        {
+            createEventLog();
+        }
     }
 
     restartRead();
@@ -195,4 +206,58 @@ void HwmonTempSensor::handleResponse(const boost::system::error_code& err,
 void HwmonTempSensor::checkThresholds(void)
 {
     thresholds::checkThresholds(this);
+}
+
+void HwmonTempSensor::clearFailedDevices()
+{
+    failedDevices.clear();
+}
+
+// Creates a ReadFailure event log if the power is on and if the
+// device hasn't previously had an error logged against it.
+void HwmonTempSensor::createEventLog()
+{
+    if (!isChassisOn())
+    {
+        return;
+    }
+
+    if (std::find(failedDevices.begin(), failedDevices.end(),
+                  std::make_pair(bus, address)) != failedDevices.end())
+    {
+        // Already have a failure on this device
+        return;
+    }
+
+    failedDevices.emplace_back(bus, address);
+
+    std::cerr << "Creating event log for sensor " << name << " read failure on "
+              << path << " with error code " << errorCode.value() << "\n";
+
+    std::map<std::string, std::string> additionalData;
+
+    additionalData["SENSOR_NAME"] = name;
+    additionalData["CALLOUT_IIC_BUS"] = std::to_string(bus);
+    additionalData["CALLOUT_IIC_ADDR"] = std::to_string(address);
+    additionalData["CALLOUT_ERRNO"] = std::to_string(errorCode.value());
+    additionalData["IIC_ERROR_CATEGORY"] = errorCode.category().name();
+    additionalData["IIC_ERROR_MESSAGE"] =
+        errorCode.category().message(errorCode.value());
+    additionalData["FILE"] = path;
+    additionalData["_PID"] = std::to_string(getpid());
+
+    dbusConnection->async_method_call(
+        [this](const boost::system::error_code ec) {
+        if (ec)
+        {
+            std::cerr << "Failed to create an event log for "
+                         "a failed read on sensor "
+                      << name << "\n";
+            return;
+        }
+        },
+        "xyz.openbmc_project.Logging", "/xyz/openbmc_project/logging",
+        "xyz.openbmc_project.Logging.Create", "Create",
+        "xyz.openbmc_project.Sensor.Device.Error.ReadFailure",
+        "xyz.openbmc_project.Logging.Entry.Level.Error", additionalData);
 }

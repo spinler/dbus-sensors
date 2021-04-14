@@ -47,6 +47,12 @@ class HwmonTempSensor :
         return i2cDevice;
     }
 
+    // Clears the history of failed reads
+    static void clearFailedDevices();
+
+    // Create an event log for a failed read
+    void createEventLog();
+
   private:
     // Ordering is important here; readBuf is first so that it's not destroyed
     // while async operations from other member fields might still be using it.
@@ -61,6 +67,12 @@ class HwmonTempSensor :
     unsigned int sensorPollMs;
     size_t bus;
     size_t address;
+
+    // pair<bus, address> of devices with logged failed reads
+    static std::vector<std::pair<size_t, size_t>> failedDevices;
+
+    // The error code from the last HW access for the sensor.
+    boost::system::error_code errorCode;
 
     void handleResponse(const boost::system::error_code& err, size_t bytesRead);
     void restartRead();
