@@ -31,7 +31,7 @@ class HwmonTempSensor :
                     const struct SensorParams& thisSensorParameters,
                     const float pollRate,
                     const std::string& sensorConfiguration,
-                    const PowerState powerState);
+                    const PowerState powerState, size_t bus, size_t address);
     ~HwmonTempSensor() override;
     void setupRead(void);
 
@@ -44,6 +44,8 @@ class HwmonTempSensor :
     double offsetValue;
     double scaleValue;
     unsigned int sensorPollMs;
+    size_t bus;
+    size_t address;
 
     void handleResponse(const boost::system::error_code& err);
     void restartRead();

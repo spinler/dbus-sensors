@@ -353,7 +353,7 @@ void createSensors(
                         *hwmonFile, sensorType, objectServer, dbusConnection,
                         io, sensorName, std::move(sensorThresholds),
                         thisSensorParameters, pollRate, *interfacePath,
-                        readState);
+                        readState, bus, addr);
                     sensor->setupRead();
                 }
                 // Looking for keys like "Name1" for temp2_input,
@@ -400,7 +400,7 @@ void createSensors(
                             *hwmonFile, sensorType, objectServer,
                             dbusConnection, io, sensorName,
                             std::move(thresholds), thisSensorParameters,
-                            pollRate, *interfacePath, readState);
+                            pollRate, *interfacePath, readState, bus, addr);
                         sensor->setupRead();
                     }
                 }
