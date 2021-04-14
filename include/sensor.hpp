@@ -385,17 +385,18 @@ struct Sensor
         }
     }
 
-    void incrementError()
+    // Return true on the call that made the sensor go nonfunctional.
+    bool incrementError()
     {
         if (!readingStateGood())
         {
             markAvailable(false);
-            return;
+            return false;
         }
 
         if (errCount >= errorThreshold)
         {
-            return;
+            return false;
         }
 
         errCount++;
@@ -403,7 +404,9 @@ struct Sensor
         {
             std::cerr << "Sensor " << name << " reading error!\n";
             markFunctional(false);
+            return true;
         }
+        return false;
     }
 
     void updateValue(const double& newValue)
