@@ -43,13 +43,15 @@ HwmonTempSensor::HwmonTempSensor(
     std::shared_ptr<sdbusplus::asio::connection>& conn,
     boost::asio::io_service& io, const std::string& sensorName,
     std::vector<thresholds::Threshold>&& thresholdsIn, const float pollRate,
-    const std::string& sensorConfiguration, const PowerState powerState) :
+    const std::string& sensorConfiguration, const PowerState powerState,
+    size_t bus, size_t address) :
     Sensor(boost::replace_all_copy(sensorName, " ", "_"),
            std::move(thresholdsIn), sensorConfiguration, objectType, false,
            maxReading, minReading, conn, powerState),
     std::enable_shared_from_this<HwmonTempSensor>(), objServer(objectServer),
     inputDev(io, open(path.c_str(), O_RDONLY)), waitTimer(io), path(path),
-    sensorPollMs(static_cast<unsigned int>(pollRate * 1000))
+    sensorPollMs(static_cast<unsigned int>(pollRate * 1000)), bus(bus),
+    address(address)
 {
     sensorInterface = objectServer.add_interface(
         "/xyz/openbmc_project/sensors/temperature/" + name,
