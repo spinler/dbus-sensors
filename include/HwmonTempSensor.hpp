@@ -35,6 +35,12 @@ class HwmonTempSensor :
     ~HwmonTempSensor() override;
     void setupRead(void);
 
+    // Clears the history of failed reads
+    static void clearFailedDevices();
+
+    // Create an event log for a failed read
+    void createEventLog();
+
   private:
     sdbusplus::asio::object_server& objServer;
     boost::asio::posix::stream_descriptor inputDev;
@@ -46,6 +52,12 @@ class HwmonTempSensor :
     unsigned int sensorPollMs;
     size_t bus;
     size_t address;
+
+    // pair<bus, address> of devices with logged failed reads
+    static std::vector<std::pair<size_t, size_t>> failedDevices;
+
+    // The error code from the last HW access for the sensor.
+    boost::system::error_code errorCode;
 
     void handleResponse(const boost::system::error_code& err);
     void restartRead();
