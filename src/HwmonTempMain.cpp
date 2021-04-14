@@ -353,5 +353,25 @@ int main()
         matches.emplace_back(std::move(match));
     }
 
+    // When power turns on, create event logs for failing sensors.
+    PowerStateCallback::Callback powerChanged = [&sensors](bool powerState) {
+        if (powerState)
+        {
+            // Forget about previous fails.
+            HwmonTempSensor::clearFailedDevices();
+
+            for (const auto& [name, sensor] : sensors)
+            {
+                if ((sensor->errCount >= errorThreshold) &&
+                    std::isnan(sensor->value))
+                {
+                    sensor->createEventLog();
+                }
+            }
+        }
+    };
+
+    PowerStateCallback::addCallback(powerChanged);
+
     io.run();
 }
