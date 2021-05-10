@@ -242,7 +242,7 @@ void createSensors(
                     sensor = std::make_shared<HwmonTempSensor>(
                         *hwmonFile, sensorType, objectServer, dbusConnection,
                         io, sensorName, std::move(sensorThresholds), pollRate,
-                        *interfacePath, readState);
+                        *interfacePath, readState, bus, addr);
                     sensor->setupRead();
                 }
                 // Looking for keys like "Name1" for temp2_input,
@@ -270,7 +270,7 @@ void createSensors(
                             *hwmonFile, sensorType, objectServer,
                             dbusConnection, io, sensorName,
                             std::vector<thresholds::Threshold>(), pollRate,
-                            *interfacePath, readState);
+                            *interfacePath, readState, bus, addr);
                         sensor->setupRead();
                     }
                 }
@@ -333,6 +333,26 @@ int main()
             eventHandler);
         matches.emplace_back(std::move(match));
     }
+
+    // When power turns on, create event logs for failing sensors.
+    PowerStateCallback::Callback powerChanged = [&sensors](bool powerState) {
+        if (powerState)
+        {
+            // Forget about previous fails.
+            HwmonTempSensor::clearFailedDevices();
+
+            for (const auto& [name, sensor] : sensors)
+            {
+                if ((sensor->errCount >= errorThreshold) &&
+                    std::isnan(sensor->value))
+                {
+                    sensor->createEventLog();
+                }
+            }
+        }
+    };
+
+    PowerStateCallback::addCallback(powerChanged);
 
     io.run();
 }

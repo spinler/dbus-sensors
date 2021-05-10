@@ -20,9 +20,15 @@ class HwmonTempSensor :
                     std::vector<thresholds::Threshold>&& thresholds,
                     const float pollRate,
                     const std::string& sensorConfiguration,
-                    const PowerState powerState);
+                    const PowerState powerState, size_t bus, size_t address);
     ~HwmonTempSensor() override;
     void setupRead(void);
+
+    // Clears the history of failed reads
+    static void clearFailedDevices();
+
+    // Create an event log for a failed read
+    void createEventLog();
 
   private:
     sdbusplus::asio::object_server& objServer;
@@ -30,8 +36,15 @@ class HwmonTempSensor :
     boost::asio::deadline_timer waitTimer;
     boost::asio::streambuf readBuf;
     std::string path;
-    size_t errCount;
     unsigned int sensorPollMs;
+    size_t bus;
+    size_t address;
+
+    // pair<bus, address> of devices with logged failed reads
+    static std::vector<std::pair<size_t, size_t>> failedDevices;
+
+    // The error code from the last HW access for the sensor.
+    boost::system::error_code errorCode;
 
     void handleResponse(const boost::system::error_code& err);
     void checkThresholds(void) override;

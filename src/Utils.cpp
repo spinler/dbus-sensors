@@ -39,6 +39,8 @@ static bool biosHasPost = false;
 static std::unique_ptr<sdbusplus::bus::match::match> powerMatch = nullptr;
 static std::unique_ptr<sdbusplus::bus::match::match> postMatch = nullptr;
 
+std::vector<PowerStateCallback::Callback> PowerStateCallback::callbacks;
+
 /**
  * return the contents of a file
  * @param[in] hwmonFile - the path to the file to read
@@ -265,7 +267,7 @@ static void
                 return;
             }
             powerStatusOn =
-                boost::ends_with(std::get<std::string>(state), "Running");
+                boost::ends_with(std::get<std::string>(state), "On");
         },
         power::busname, power::path, properties::interface, properties::get,
         power::interface, power::property);
@@ -327,11 +329,12 @@ void setupPowerMatch(const std::shared_ptr<sdbusplus::asio::connection>& conn)
             if (findState != values.end())
             {
                 bool on = boost::ends_with(
-                    std::get<std::string>(findState->second), "Running");
+                    std::get<std::string>(findState->second), "On");
                 if (!on)
                 {
                     timer.cancel();
                     powerStatusOn = false;
+                    PowerStateCallback::changed(powerStatusOn);
                     return;
                 }
                 // on comes too quickly
@@ -347,6 +350,7 @@ void setupPowerMatch(const std::shared_ptr<sdbusplus::asio::connection>& conn)
                         return;
                     }
                     powerStatusOn = true;
+                    PowerStateCallback::changed(powerStatusOn);
                 });
             }
         });

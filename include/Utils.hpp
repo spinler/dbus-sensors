@@ -96,10 +96,10 @@ constexpr const char* set = "Set";
 
 namespace power
 {
-const static constexpr char* busname = "xyz.openbmc_project.State.Host";
-const static constexpr char* interface = "xyz.openbmc_project.State.Host";
-const static constexpr char* path = "/xyz/openbmc_project/state/host0";
-const static constexpr char* property = "CurrentHostState";
+const static constexpr char* busname = "xyz.openbmc_project.State.Chassis";
+const static constexpr char* interface = "xyz.openbmc_project.State.Chassis";
+const static constexpr char* path = "/xyz/openbmc_project/state/chassis0";
+const static constexpr char* property = "CurrentPowerState";
 } // namespace power
 namespace post
 {
@@ -316,3 +316,29 @@ std::optional<std::tuple<std::string, std::string, std::string>>
     splitFileName(const std::filesystem::path& filePath);
 std::optional<double> readFile(const std::string& thresholdFile,
                                const double& scaleFactor);
+
+// Lets users register a function to call when the power state
+// changes using the addCallback() function.
+class PowerStateCallback
+{
+  public:
+    using Callback = std::function<void(bool)>;
+
+    PowerStateCallback() = default;
+    ~PowerStateCallback() = default;
+
+    static void addCallback(Callback& callback)
+    {
+        callbacks.push_back(callback);
+    }
+
+    static void changed(bool powerState)
+    {
+        std::for_each(
+            callbacks.begin(), callbacks.end(),
+            [powerState](const auto& callback) { callback(powerState); });
+    }
+
+  private:
+    static std::vector<Callback> callbacks;
+};
