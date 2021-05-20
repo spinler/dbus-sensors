@@ -16,7 +16,9 @@ class IIOSensor : public Sensor, public std::enable_shared_from_this<IIOSensor>
               std::shared_ptr<sdbusplus::asio::connection>& conn,
               boost::asio::io_service& io, const std::string& sensorName,
               std::vector<thresholds::Threshold>&& thresholds,
-              const float pollRate, const std::string& sensorConfiguration,
+              const double offsetValue, const double scaleValue,
+              const std::string& units, const float pollRate,
+              const std::string& sensorConfiguration,
               const PowerState powerState, const std::string& sensorType);
     ~IIOSensor() override;
     void setupRead(void);
@@ -27,7 +29,9 @@ class IIOSensor : public Sensor, public std::enable_shared_from_this<IIOSensor>
     boost::asio::deadline_timer waitTimer;
     boost::asio::streambuf readBuf;
     std::string path;
-    size_t errCount;
+    double offsetValue;
+    double scaleValue;
+    std::string units;
     unsigned int sensorPollMs;
 
     void handleResponse(const boost::system::error_code& err);
