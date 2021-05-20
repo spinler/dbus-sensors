@@ -24,8 +24,6 @@
 // pressure, the modern equivalent of the traditional millibar.
 // However we tend to not put prefixes on dbus APIs, so our pressure
 // is in Pascals.
-static constexpr unsigned int pressureScaleFactor = 1000;    // a multiplier
-static constexpr unsigned int temperatureScaleFactor = 1000; // a divisor
 
 static constexpr double maxReadingPressure = 120000; // Pascals
 static constexpr double minReadingPressure = 30000;  // Pascals
@@ -38,7 +36,8 @@ IIOSensor::IIOSensor(const std::string& path, const std::string& objectType,
                      std::shared_ptr<sdbusplus::asio::connection>& conn,
                      boost::asio::io_service& io, const std::string& sensorName,
                      std::vector<thresholds::Threshold>&& thresholdsIn,
-                     const float pollRate,
+                     const double offsetValue, const double scaleValue,
+                     const std::string& units, const float pollRate,
                      const std::string& sensorConfiguration,
                      const PowerState powerState,
                      const std::string& sensorType) :
@@ -51,24 +50,9 @@ IIOSensor::IIOSensor(const std::string& path, const std::string& objectType,
            conn, powerState),
     std::enable_shared_from_this<IIOSensor>(), objServer(objectServer),
     inputDev(io, open(path.c_str(), O_RDONLY)), waitTimer(io), path(path),
+    offsetValue(offsetValue), scaleValue(scaleValue), units(units),
     sensorPollMs(static_cast<unsigned int>(pollRate * 1000))
 {
-    const char* units;
-
-    if (sensorType.compare("temperature") == 0)
-    {
-        units = "DegreesC";
-    }
-    else if (sensorType.compare("pressure") == 0)
-    {
-        units = "Pascals";
-    }
-    // This should NEVER happen.
-    else
-    {
-        units = "Unknown";
-    }
-
     sensorInterface = objectServer.add_interface(
         "/xyz/openbmc_project/sensors/" + sensorType + "/" + name,
         "xyz.openbmc_project.Sensor.Value");
@@ -133,23 +117,9 @@ void IIOSensor::handleResponse(const boost::system::error_code& err)
         std::getline(responseStream, response);
         try
         {
-            rawValue = std::stod(response);
             double nvalue;
-            std::string myPressure = "in_pressure";
-            std::string myTemperature = "in_temp";
-            if (path.find(myPressure) != std::string::npos)
-            {
-                nvalue = rawValue * pressureScaleFactor;
-            }
-            else if (path.find(myTemperature) != std::string::npos)
-            {
-                nvalue = rawValue / temperatureScaleFactor;
-            }
-            // This should NEVER happen.
-            else
-            {
-                nvalue = rawValue * 1.0;
-            }
+            rawValue = std::stod(response);
+            nvalue = (rawValue + offsetValue) * scaleValue;
             updateValue(nvalue);
         }
         catch (const std::invalid_argument&)
