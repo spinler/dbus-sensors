@@ -21,13 +21,13 @@
 #include <vector>
 
 // pollRates are expressed in seconds
-static constexpr float pollRateDefaultTemperature =
-    0.997; // 3 msec less than 1 second
-static constexpr float pollRateDefaultPressure = 7 * 60; // 7 minutes
+static constexpr float pollRateDefaultTemperature = 1;   // 1 second
+static constexpr float pollRateDefaultPressure = 1 * 60; // 1 minute
 
 namespace fs = std::filesystem;
-static constexpr std::array<const char*, 1> sensorTypes = {
-    "xyz.openbmc_project.Configuration.DPS310"};
+static constexpr std::array<const char*, 2> sensorTypes = {
+    "xyz.openbmc_project.Configuration.DPS310",
+    "xyz.openbmc_project.Configuration.SI7020"};
 
 void createSensors(
     boost::asio::io_service& io, sdbusplus::asio::object_server& objectServer,
@@ -95,9 +95,34 @@ void createSensors(
                 const SensorBaseConfigMap* baseConfigMap = nullptr;
                 std::string sensorTypeName = "temperature";
 
-                if (pathStr.find("pressure") != std::string::npos)
+                double offsetValue = 0.0;
+                double scaleValue = 0.001;
+                std::string units = "DegreesC";
+
+                if (pathStr.find("in_pressure_") != std::string::npos)
                 {
                     sensorTypeName = "pressure";
+                    scaleValue = 1000.0;
+                    units = "Pascals";
+                }
+
+                // with a _raw IIO device we need to get the
+                // offsetVlaue and scaleVale from the drive
+                if (pathStr.find("_raw") != std::string::npos)
+                {
+                    // The default values were discussed here
+                    // https://discord.com/channels/775381525260664832/775381525260664836/862826267286700032
+                    offsetValue = 0.0;
+                    scaleValue = 1.0;
+
+                    // TODO: get the values, if they exist, from the drive via
+                    // the /sys/bus/iio/devices/iio:deviceX/in_XXX_offset and
+                    // the /sys/bus/iio/devices/iio:deviceX/in_XXX_scale
+                    // These values were taken from
+                    // /sys/bus/iio/devices/iio:device0/in_temp_offset and
+                    // /sys/bus/iio/devices/iio:device0/in_temp_scale
+                    offsetValue = -4368.0;
+                    scaleValue = 10.725097656 * 0.001;
                 }
 
                 for (const std::pair<sdbusplus::message::object_path,
@@ -149,19 +174,10 @@ void createSensors(
                     continue;
                 }
 
-                auto findSensorName = baseConfigMap->find("Name");
-                if (sensorTypeName.compare("temperature") == 0)
-                {
-                    findSensorName = baseConfigMap->find("Name1");
-                }
-                else if (sensorTypeName.compare("pressure") == 0)
+                auto findSensorName = baseConfigMap->find("Name1");
+                if (sensorTypeName == "temperature")
                 {
                     findSensorName = baseConfigMap->find("Name");
-                }
-                // This should NEVER happen.
-                else
-                {
-                    findSensorName = baseConfigMap->find("Unknown");
                 }
 
                 if (findSensorName == baseConfigMap->end())
@@ -177,12 +193,16 @@ void createSensors(
                 if (!firstScan && findSensor != sensors.end())
                 {
                     bool found = false;
-                    for (auto it = sensorsChanged->begin();
-                         it != sensorsChanged->end(); it++)
+                    auto it = sensorsChanged->begin();
+                    while (it != sensorsChanged->end())
                     {
-                        if (boost::ends_with(*it, findSensor->second->name))
+                        if (!boost::ends_with(*it, findSensor->second->name))
                         {
-                            sensorsChanged->erase(it);
+                            ++it;
+                        }
+                        else
+                        {
+                            it = sensorsChanged->erase(it);
                             findSensor->second = nullptr;
                             found = true;
                             break;
@@ -228,10 +248,12 @@ void createSensors(
                 }
 
                 auto& sensor = sensors[sensorName];
+                sensor = nullptr;
                 sensor = std::make_shared<IIOSensor>(
                     pathStr, sensorType, objectServer, dbusConnection, io,
-                    sensorName, std::move(sensorThresholds), pollRate,
-                    *interfacePath, readState, sensorTypeName);
+                    sensorName, std::move(sensorThresholds), offsetValue,
+                    scaleValue, units, pollRate, *interfacePath, readState,
+                    sensorTypeName);
                 sensor->setupRead();
             }
         }));
@@ -256,7 +278,7 @@ int main()
 
     boost::asio::deadline_timer filterTimer(io);
     std::function<void(sdbusplus::message::message&)> eventHandler =
-        [&](sdbusplus::message::message& message) {
+        [&](const sdbusplus::message::message& message) {
             if (message.is_method_error())
             {
                 std::cerr << "callback method error\n";
