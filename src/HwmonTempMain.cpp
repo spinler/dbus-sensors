@@ -285,10 +285,10 @@ void createSensors(
                         auto& sensor = sensors[sensorName];
                         sensor = nullptr;
                         sensor = std::make_shared<HwmonTempSensor>(
-                               *hwmonFile, sensorType, objectServer,
-                               dbusConnection, io, sensorName,
-                               std::move(thresholds), pollRate, *interfacePath,
-                               readState, bus, addr);
+                            *hwmonFile, sensorType, objectServer,
+                            dbusConnection, io, sensorName,
+                            std::move(thresholds), pollRate, *interfacePath,
+                            readState, bus, addr);
                         sensor->setupRead();
                     }
                 }
