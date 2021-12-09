@@ -15,6 +15,7 @@
 */
 
 #include <HwmonTempSensor.hpp>
+#include <SlotPowerManager.hpp>
 #include <Utils.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/replace.hpp>
@@ -65,6 +66,7 @@ static auto sensorTypes{
                                 "xyz.openbmc_project.Configuration.W83773G",
                                 "xyz.openbmc_project.Configuration.DPS310",
                                 "xyz.openbmc_project.Configuration.SI7020",
+                                "xyz.openbmc_project.Configuration.TMP435",
                                 "xyz.openbmc_project.Configuration.JC42"})};
 
 static struct SensorParams
@@ -152,6 +154,8 @@ void createSensors(
         [&io, &objectServer, &sensors, &dbusConnection,
          sensorsChanged](const ManagedObjectType& sensorConfigurations) {
             bool firstScan = sensorsChanged == nullptr;
+
+            slotPowerManager->update(sensorConfigurations);
 
             // IIO _raw devices look like this on sysfs:
             //     /sys/bus/iio/devices/iio:device0/in_temp_raw
@@ -455,6 +459,11 @@ int main()
     std::vector<std::unique_ptr<sdbusplus::bus::match::match>> matches;
     auto sensorsChanged =
         std::make_shared<boost::container::flat_set<std::string>>();
+
+    slotPowerManager = std::make_unique<SlotPowerManager>(
+        io, systemBus, [&](const auto& newSensors) {
+            createSensors(io, objectServer, sensors, systemBus, newSensors);
+        });
 
     io.post([&]() {
         createSensors(io, objectServer, sensors, systemBus, nullptr);

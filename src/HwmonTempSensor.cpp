@@ -14,6 +14,8 @@
 // limitations under the License.
 */
 
+#include "SlotPowerManager.hpp"
+
 #include <unistd.h>
 
 #include <HwmonTempSensor.hpp>
@@ -100,7 +102,7 @@ HwmonTempSensor::~HwmonTempSensor()
 
 void HwmonTempSensor::setupRead(void)
 {
-    if (!readingStateGood())
+    if (!readingStateGood() || slotPowerManager->isDeviceOff(bus, address))
     {
         markAvailable(false);
         updateValue(std::numeric_limits<double>::quiet_NaN());
