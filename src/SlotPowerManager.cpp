@@ -257,7 +257,7 @@ void SlotPowerManager::powerStateChanged(sdbusplus::message::message& msg)
 
 void SlotPowerManager::bindDrivers()
 {
-    for (const auto& devices : slotDevices | std::views::values)
+    for (auto& devices : slotDevices | std::views::values)
     {
         for (const auto& device : devices)
         {
@@ -313,7 +313,7 @@ bool SlotPowerManager::deviceExists(const DeviceInfo& device)
 
 bool SlotPowerManager::isDeviceOff(uint64_t bus, uint64_t address) const
 {
-    for (const auto& configs : slotDevices | std::views::values)
+    for (auto& configs : slotDevices | std::views::values)
     {
         auto deviceIt = std::find_if(
             configs.begin(), configs.end(), [bus, address](const auto& config) {
