@@ -1,7 +1,6 @@
 #include "SlotPowerManager.hpp"
 
 #include <boost/algorithm/string.hpp>
-#include <boost/asio/deadline_timer.hpp> //remove
 #include <phosphor-logging/lg2.hpp>
 
 #include <filesystem>
@@ -23,7 +22,6 @@ constexpr auto baseI2CPath = "/sys/bus/i2c/devices/i2c-";
 void SlotPowerManager::update(const ManagedObjectType& sensorConfigurations)
 {
     std::vector<std::string> newSlots;
-    std::map<std::string, std::string> powerStates;
     std::vector<DeviceInfo> deviceConfigs;
     static std::map<std::string, std::string> slots;
 
@@ -122,10 +120,10 @@ void SlotPowerManager::getDeviceConfigs(
             deviceInfo.address = std::get<uint64_t>(config.at("Address"));
             deviceInfo.locationCode = std::get<std::string>(locCodeIt->second);
 
-            deviceConfigs.push_back(std::move(deviceInfo));
-
             debug("DeviceInfo: Name: {NAME}, Type: {TYPE}", "NAME",
                   deviceInfo.name, "TYPE", deviceInfo.type);
+
+            deviceConfigs.push_back(std::move(deviceInfo));
         }
     }
 }
