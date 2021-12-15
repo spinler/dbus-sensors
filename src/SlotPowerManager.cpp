@@ -5,7 +5,6 @@
 
 #include <filesystem>
 #include <fstream>
-#include <ranges>
 
 PHOSPHOR_LOG2_USING;
 namespace fs = std::filesystem;
@@ -257,7 +256,7 @@ void SlotPowerManager::powerStateChanged(sdbusplus::message::message& msg)
 
 void SlotPowerManager::bindDrivers()
 {
-    for (auto& devices : slotDevices | std::views::values)
+    for (const auto& [_, devices] : slotDevices)
     {
         for (const auto& device : devices)
         {
@@ -313,14 +312,14 @@ bool SlotPowerManager::deviceExists(const DeviceInfo& device)
 
 bool SlotPowerManager::isDeviceOff(uint64_t bus, uint64_t address) const
 {
-    for (auto& configs : slotDevices | std::views::values)
+    for (const auto& [_, devices] : slotDevices)
     {
         auto deviceIt = std::find_if(
-            configs.begin(), configs.end(), [bus, address](const auto& config) {
-                return (bus == config.bus) && (address == config.address);
+            devices.begin(), devices.end(), [bus, address](const auto& device) {
+                return (bus == device.bus) && (address == device.address);
             });
 
-        if (deviceIt != configs.end())
+        if (deviceIt != devices.end())
         {
             return boost::ends_with(deviceIt->state, "Off");
         }
