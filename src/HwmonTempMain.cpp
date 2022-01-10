@@ -16,6 +16,7 @@
 
 #include <DeviceMgmt.hpp>
 #include <HwmonTempSensor.hpp>
+#include <SlotPowerManager.hpp>
 #include <Utils.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/container/flat_map.hpp>
@@ -70,6 +71,7 @@ static const I2CDeviceTypeMap sensorTypes{
     {"TMP112", I2CDeviceType{"tmp112", true}},
     {"TMP175", I2CDeviceType{"tmp175", true}},
     {"TMP421", I2CDeviceType{"tmp421", true}},
+    {"TMP435", I2CDeviceType{"tmp435", true}},
     {"TMP441", I2CDeviceType{"tmp441", true}},
     {"TMP75", I2CDeviceType{"tmp75", true}},
     {"W83773G", I2CDeviceType{"w83773g", true}},
@@ -280,6 +282,11 @@ boost::container::flat_map<std::string,
                 continue;
             }
 
+            if (slotPowerManager->isDeviceOff(cfg))
+            {
+                continue;
+            }
+
             std::optional<I2CDeviceParams> params =
                 getI2CDeviceParams(sensorTypes, cfg);
             if (params.has_value() && !params->deviceStatic())
@@ -332,6 +339,8 @@ void createSensors(
         [&io, &objectServer, &sensors, &dbusConnection, sensorsChanged,
          activateOnly](const ManagedObjectType& sensorConfigurations) {
         bool firstScan = sensorsChanged == nullptr;
+
+        slotPowerManager->update(sensorConfigurations);
 
         SensorConfigMap configMap = buildSensorConfigMap(sensorConfigurations);
 
@@ -690,6 +699,12 @@ int main()
         powerStateChanged(type, state, sensors, io, objectServer, systemBus);
     };
     setupPowerMatchCallback(systemBus, powerCallBack);
+
+    slotPowerManager =
+        std::make_unique<SlotPowerManager>(*systemBus,
+                                           [&](const auto& newSensors) {
+        createSensors(io, objectServer, sensors, systemBus, newSensors, false);
+        });
 
     io.post([&]() {
         createSensors(io, objectServer, sensors, systemBus, nullptr, false);
