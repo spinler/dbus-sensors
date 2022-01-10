@@ -77,6 +77,7 @@ if get_option('hwmon-temp').enabled()
         'hwmontempsensor',
         'HwmonTempMain.cpp',
         'HwmonTempSensor.cpp',
+        'SlotPowerManager.cpp',
         dependencies: [
             default_deps,
             thresholds_dep,
