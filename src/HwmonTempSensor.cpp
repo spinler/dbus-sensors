@@ -16,6 +16,8 @@
 
 #include "HwmonTempSensor.hpp"
 
+#include "SlotPowerManager.hpp"
+
 #include <unistd.h>
 
 #include <boost/asio/read_until.hpp>
@@ -122,7 +124,7 @@ HwmonTempSensor::~HwmonTempSensor()
 
 void HwmonTempSensor::setupRead(void)
 {
-    if (!readingStateGood())
+    if (!readingStateGood() || slotPowerManager->isDeviceOff(bus, address))
     {
         markAvailable(false);
         updateValue(std::numeric_limits<double>::quiet_NaN());
@@ -255,7 +257,7 @@ void HwmonTempSensor::createEventLog()
                       << name << "\n";
             return;
         }
-        },
+    },
         "xyz.openbmc_project.Logging", "/xyz/openbmc_project/logging",
         "xyz.openbmc_project.Logging.Create", "Create",
         "xyz.openbmc_project.Sensor.Device.Error.ReadFailure",

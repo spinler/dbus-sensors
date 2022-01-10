@@ -138,6 +138,7 @@ if get_option('hwmon-temp').allowed()
         'hwmontempsensor',
         'HwmonTempMain.cpp',
         'HwmonTempSensor.cpp',
+        'SlotPowerManager.cpp',
         dependencies: [
             default_deps,
             devicemgmt_dep,
@@ -211,6 +212,7 @@ if get_option('psu').allowed()
         'PSUEvent.cpp',
         'PSUSensor.cpp',
         'PSUSensorMain.cpp',
+        'SlotPowerManager.cpp',
         dependencies: [
             default_deps,
             devicemgmt_dep,
