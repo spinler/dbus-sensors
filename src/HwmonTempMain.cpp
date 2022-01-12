@@ -42,6 +42,9 @@ static constexpr float pollRateDefault = 0.5;
 static constexpr double maxValuePressure = 120000; // Pascals
 static constexpr double minValuePressure = 30000;  // Pascals
 
+static constexpr double maxValueRelativeHumidity = 100; // PercentRH
+static constexpr double minValueRelativeHumidity = 0;   // PercentRH
+
 static constexpr double maxValueTemperature = 127;  // DegreesC
 static constexpr double minValueTemperature = -128; // DegreesC
 
@@ -131,6 +134,16 @@ static struct SensorParams
         tmpSensorParameters.typeName = "pressure";
         tmpSensorParameters.units = sensor_paths::unitPascals;
     }
+    else if (path.filename() == "in_humidityrelative_input" ||
+             path.filename() == "in_humidityrelative_raw")
+    {
+        tmpSensorParameters.minValue = minValueRelativeHumidity;
+        tmpSensorParameters.maxValue = maxValueRelativeHumidity;
+        // Relative Humidity are read in milli-percent, we need percent.
+        tmpSensorParameters.scaleValue *= 0.001;
+        tmpSensorParameters.typeName = "humidity";
+        tmpSensorParameters.units = "PercentRH";
+    }
     else
     {
         // Temperatures are read in milli degrees Celsius,
@@ -169,6 +182,7 @@ void createSensors(
             fs::path root("/sys/bus/iio/devices");
             findFiles(root, R"(in_temp\d*_(input|raw))", paths);
             findFiles(root, R"(in_pressure\d*_(input|raw))", paths);
+            findFiles(root, R"(in_humidityrelative\d*_(input|raw))", paths);
             findFiles(fs::path("/sys/class/hwmon"), R"(temp\d+_input)", paths);
 
             if (paths.empty())
@@ -268,14 +282,13 @@ void createSensors(
                 }
                 if (interfacePath == nullptr)
                 {
-                    std::cerr << "failed to find match for " << deviceName
-                              << "\n";
                     continue;
                 }
 
                 // Temperature has "Name", pressure has "Name1"
                 auto findSensorName = baseConfigMap->find("Name");
-                if (thisSensorParameters.typeName == "pressure")
+                if (thisSensorParameters.typeName == "pressure" ||
+                    thisSensorParameters.typeName == "humidity")
                 {
                     findSensorName = baseConfigMap->find("Name1");
                 }
