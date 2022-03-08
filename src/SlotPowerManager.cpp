@@ -337,7 +337,7 @@ bool SlotPowerManager::isDeviceOff(uint64_t bus, uint64_t address) const
 
         if (deviceIt != devices.end())
         {
-            return boost::ends_with(deviceIt->state, "Off") || !isPowerOn();
+            return !boost::ends_with(deviceIt->state, "On") || !isPowerOn();
         }
     }
     return false;
