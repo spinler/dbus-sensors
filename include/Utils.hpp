@@ -69,6 +69,7 @@ bool findFiles(const std::filesystem::path& dirPath,
 bool isPowerOn(void);
 bool hasBiosPost(void);
 bool isChassisOn(void);
+bool isPGoodOn();
 void setupPowerMatchCallback(
     const std::shared_ptr<sdbusplus::asio::connection>& conn,
     std::function<void(PowerState type, bool state)>&& callback);
@@ -148,6 +149,14 @@ namespace association
 const static constexpr char* interface =
     "xyz.openbmc_project.Association.Definitions";
 } // namespace association
+
+namespace pgood
+{
+const static constexpr char* busname = "org.openbmc.control.Power";
+const static constexpr char* interface = "org.openbmc.control.Power";
+const static constexpr char* path = "/org/openbmc/control/power0";
+const static constexpr char* property = "pgood";
+} // namespace pgood
 
 template <typename T>
 inline T loadVariant(const SensorBaseConfigMap& data, const std::string& key)
