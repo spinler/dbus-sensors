@@ -289,8 +289,6 @@ NVMeBasicContext::NVMeBasicContext(boost::asio::io_service& io, int rootBus) :
 
 void NVMeBasicContext::readAndProcessNVMeSensor()
 {
-    auto response = std::make_shared<boost::asio::streambuf>();
-
     if (sensors.empty())
     {
         return;
@@ -328,6 +326,7 @@ void NVMeBasicContext::readAndProcessNVMeSensor()
             }
         });
 
+    auto response = std::make_shared<boost::asio::streambuf>();
     response->prepare(1);
 
     /* Gather the response and dispatch for parsing */
