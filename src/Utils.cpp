@@ -38,9 +38,11 @@ namespace fs = std::filesystem;
 static bool powerStatusOn = false;
 static bool biosHasPost = false;
 static bool manufacturingMode = false;
+static bool pgoodStatus = false;
 
 static std::unique_ptr<sdbusplus::bus::match::match> powerMatch = nullptr;
 static std::unique_ptr<sdbusplus::bus::match::match> postMatch = nullptr;
+static std::unique_ptr<sdbusplus::bus::match::match> pgoodMatch = nullptr;
 
 std::vector<PowerStateCallback::Callback> PowerStateCallback::callbacks;
 
@@ -304,7 +306,16 @@ bool isPowerOn(void)
     {
         throw std::runtime_error("Power Match Not Created");
     }
-    return powerStatusOn;
+    return powerStatusOn && isPGoodOn();
+}
+
+bool isPGoodOn()
+{
+    if (!pgoodMatch)
+    {
+        throw std::runtime_error("PGood Match Not Created");
+    }
+    return pgoodStatus;
 }
 
 bool hasBiosPost(void)
@@ -362,6 +373,37 @@ static void
         },
         power::busname, power::path, properties::interface, properties::get,
         power::interface, power::property);
+}
+
+static void
+    getPGoodStatus(const std::shared_ptr<sdbusplus::asio::connection>& conn,
+                   size_t retries = 2)
+{
+    conn->async_method_call(
+        [conn, retries](boost::system::error_code ec,
+                        const std::variant<int>& pgoodValue) {
+            if (ec)
+            {
+                if (retries)
+                {
+                    auto timer = std::make_shared<boost::asio::steady_timer>(
+                        conn->get_io_context());
+                    timer->expires_after(std::chrono::seconds(15));
+                    timer->async_wait(
+                        [timer, conn, retries](boost::system::error_code) {
+                            getPGoodStatus(conn, retries - 1);
+                        });
+                    return;
+                }
+
+                std::cerr << "error getting pgood status " << ec.message()
+                          << "\n";
+                return;
+            }
+            pgoodStatus = std::get<int>(pgoodValue) != 0;
+        },
+        pgood::busname, pgood::path, properties::interface, properties::get,
+        pgood::interface, pgood::property);
 }
 
 static void
@@ -464,8 +506,25 @@ void setupPowerMatch(const std::shared_ptr<sdbusplus::asio::connection>& conn)
             }
         });
 
+    pgoodMatch = std::make_unique<sdbusplus::bus::match::match>(
+        static_cast<sdbusplus::bus::bus&>(*conn),
+        "type='signal',interface='" + std::string(properties::interface) +
+            "',path='" + std::string(pgood::path) + "',arg0='" +
+            std::string(pgood::interface) + "'",
+        [](sdbusplus::message::message& message) {
+            std::string objectName;
+            boost::container::flat_map<std::string, std::variant<int>> values;
+            message.read(objectName, values);
+            auto findPGood = values.find(pgood::property);
+            if (findPGood != values.end())
+            {
+                pgoodStatus = std::get<int>(findPGood->second) != 0;
+            }
+        });
+
     getPowerStatus(conn);
     getPostStatus(conn);
+    getPGoodStatus(conn);
 }
 
 // replaces limits if MinReading and MaxReading are found.
