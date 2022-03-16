@@ -195,7 +195,6 @@ static SensorConfigMap
             auto addrCfg = cfg.find("Address");
             if ((busCfg == cfg.end()) || (addrCfg == cfg.end()))
             {
-                std::cerr << sensor.first.str << " missing Bus or Address\n";
                 continue;
             }
 
