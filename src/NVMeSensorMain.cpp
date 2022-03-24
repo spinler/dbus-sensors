@@ -16,7 +16,6 @@
 
 #include <NVMeBasicContext.hpp>
 #include <NVMeContext.hpp>
-#include <NVMeMCTPContext.hpp>
 #include <NVMeSensor.hpp>
 #include <boost/asio/deadline_timer.hpp>
 
@@ -103,11 +102,7 @@ static std::shared_ptr<NVMeContext>
     }
 
     std::shared_ptr<NVMeContext> context =
-#if HAVE_NVME_MI_MCTP
-        std::make_shared<NVMeMCTPContext>(io, rootBus);
-#else
         std::make_shared<NVMeBasicContext>(io, rootBus);
-#endif
     map[rootBus] = context;
 
     return context;
@@ -154,13 +149,27 @@ static void handleSensorConfigurations(
                           << "\n";
             }
 
-            std::shared_ptr<NVMeSensor> sensorPtr =
-                std::make_shared<NVMeSensor>(
-                    objectServer, io, dbusConnection, *sensorName,
-                    std::move(sensorThresholds), interfacePath, *busNumber);
+            try
+            {
+                // May throw for an invalid rootBus
+                std::shared_ptr<NVMeContext> context =
+                    provideRootBusContext(io, nvmeDeviceMap, *rootBus);
 
-            provideRootBusContext(io, nvmeDeviceMap, *rootBus)
-                ->addSensor(sensorPtr);
+                // Construct the sensor after grabbing the context so we don't
+                // glitch D-Bus May throw for an invalid busNumber
+                std::shared_ptr<NVMeSensor> sensorPtr =
+                    std::make_shared<NVMeSensor>(
+                        objectServer, io, dbusConnection, *sensorName,
+                        std::move(sensorThresholds), interfacePath, *busNumber);
+
+                context->addSensor(sensorPtr);
+            }
+            catch (const std::invalid_argument& ex)
+            {
+                std::cerr << "Failed to add sensor for "
+                          << std::string(interfacePath) << ": " << ex.what()
+                          << "\n";
+            }
         }
     }
     for (const auto& [_, context] : nvmeDeviceMap)
@@ -224,9 +233,6 @@ int main()
     auto systemBus = std::make_shared<sdbusplus::asio::connection>(io);
     systemBus->request_name("xyz.openbmc_project.NVMeSensor");
     sdbusplus::asio::object_server objectServer(systemBus);
-#if HAVE_NVME_MI_MCTP
-    nvmeMCTP::init();
-#endif
 
     io.post([&]() { createSensors(io, objectServer, systemBus); });
 

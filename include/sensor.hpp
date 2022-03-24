@@ -434,6 +434,11 @@ struct Sensor
         return false;
     }
 
+    bool inError()
+    {
+        return errCount >= errorThreshold;
+    }
+
     void updateValue(const double& newValue)
     {
         // Ignore if overriding is enabled

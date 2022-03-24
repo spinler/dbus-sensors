@@ -287,32 +287,29 @@ NVMeBasicContext::NVMeBasicContext(boost::asio::io_service& io, int rootBus) :
     thread.detach();
 }
 
-void NVMeBasicContext::readAndProcessNVMeSensor()
+void NVMeBasicContext::readAndProcessNVMeSensor(
+    std::list<std::shared_ptr<NVMeSensor>>::iterator iter)
 {
-    auto response = std::make_shared<boost::asio::streambuf>();
-
-    if (sensors.empty())
+    if (iter == sensors.end())
     {
+        this->pollNVMeDevices();
         return;
     }
 
-    std::shared_ptr<NVMeSensor>& sensor = sensors.front();
+    std::shared_ptr<NVMeSensor> sensor = *iter++;
 
     if (!sensor->readingStateGood())
     {
         sensor->markAvailable(false);
         sensor->updateValue(std::numeric_limits<double>::quiet_NaN());
+        readAndProcessNVMeSensor(iter);
         return;
     }
 
-    /* Ensure sensor query parameters are sensible */
-    if (sensor->bus < 0)
+    /* Potentially defer sampling the sensor sensor if it is in error */
+    if (!sensor->sample())
     {
-        std::cerr << "Bus index cannot be negative: " << sensor->bus << "\n";
-
-        sensors.pop_front();
-        sensors.emplace_back(sensor);
-
+        readAndProcessNVMeSensor(iter);
         return;
     }
 
@@ -328,6 +325,7 @@ void NVMeBasicContext::readAndProcessNVMeSensor()
             }
         });
 
+    auto response = std::make_shared<boost::asio::streambuf>();
     response->prepare(1);
 
     /* Gather the response and dispatch for parsing */
@@ -369,8 +367,8 @@ void NVMeBasicContext::readAndProcessNVMeSensor()
             response->prepare(len);
             return len;
         },
-        [self{shared_from_this()},
-         response](const boost::system::error_code& ec, std::size_t length) {
+        [self{shared_from_this()}, iter, sensor, response](
+            const boost::system::error_code& ec, std::size_t length) mutable {
             if (ec)
             {
                 std::cerr << "Got error reading basic query: " << ec << "\n";
@@ -383,41 +381,40 @@ void NVMeBasicContext::readAndProcessNVMeSensor()
                 return;
             }
 
-            if (length == 1)
-            {
-                std::cerr << "Basic query failed\n";
-                return;
-            }
-
             /* Deserialise the response */
             response->consume(1); /* Drop the length byte */
             std::istream is(response.get());
             std::vector<char> data(response->size());
             is.read(data.data(), response->size());
 
-            self->processResponse(data.data(), data.size());
+            /* Update the sensor */
+            self->processResponse(sensor, data.data(), data.size());
+
+            /* Enqueue processing of the next sensor */
+            self->readAndProcessNVMeSensor(iter);
         });
 }
 
 void NVMeBasicContext::pollNVMeDevices()
 {
+    auto scan = sensors.begin();
+
     scanTimer.expires_from_now(boost::posix_time::seconds(1));
-    scanTimer.async_wait(
-        [self{shared_from_this()}](const boost::system::error_code errorCode) {
-            if (errorCode == boost::asio::error::operation_aborted)
-            {
-                return;
-            }
+    scanTimer.async_wait([self{shared_from_this()},
+                          scan](const boost::system::error_code errorCode) {
+        if (errorCode == boost::asio::error::operation_aborted)
+        {
+            return;
+        }
 
-            if (errorCode)
-            {
-                std::cerr << errorCode.message() << "\n";
-                return;
-            }
+        if (errorCode)
+        {
+            std::cerr << errorCode.message() << "\n";
+            return;
+        }
 
-            self->readAndProcessNVMeSensor();
-            self->pollNVMeDevices();
-        });
+        self->readAndProcessNVMeSensor(scan);
+    });
 }
 
 static double getTemperatureReading(int8_t reading)
@@ -433,35 +430,31 @@ static double getTemperatureReading(int8_t reading)
     return reading;
 }
 
-void NVMeBasicContext::processResponse(void* msg, size_t len)
+void NVMeBasicContext::processResponse(std::shared_ptr<NVMeSensor>& sensor,
+                                       void* msg, size_t len)
 {
-    if (msg == nullptr)
+    if (msg == nullptr || len < 6)
     {
-        std::cerr << "Bad message received\n";
-        return;
-    }
-
-    if (len < 6)
-    {
-        std::cerr << "Invalid message length: " << len << "\n";
+        sensor->incrementError();
         return;
     }
 
     uint8_t* messageData = static_cast<uint8_t*>(msg);
 
-    std::shared_ptr<NVMeSensor> sensor = sensors.front();
+    uint8_t status = messageData[0];
+    if ((status & NVME_MI_BASIC_SFLGS_DRIVE_NOT_READY) ||
+        !(status & NVME_MI_BASIC_SFLGS_DRIVE_FUNCTIONAL))
+    {
+        sensor->markFunctional(false);
+        return;
+    }
+
     double value = getTemperatureReading(messageData[2]);
-
-    if (std::isfinite(value))
+    if (!std::isfinite(value))
     {
-        sensor->updateValue(value);
-    }
-    else
-    {
-        sensor->markAvailable(false);
         sensor->incrementError();
+        return;
     }
 
-    sensors.pop_front();
-    sensors.emplace_back(sensor);
+    sensor->updateValue(value);
 }

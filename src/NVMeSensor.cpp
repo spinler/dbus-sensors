@@ -31,8 +31,13 @@ NVMeSensor::NVMeSensor(sdbusplus::asio::object_server& objectServer,
     Sensor(escapeName(sensorName), std::move(thresholdsIn), sensorConfiguration,
            NVMeSensor::CONFIG_TYPE, false, false, maxReading, minReading, conn,
            PowerState::on),
-    bus(busNumber), objServer(objectServer)
+    bus(busNumber), objServer(objectServer), scanDelay(0)
 {
+    if (bus < 0)
+    {
+        throw std::invalid_argument("Invalid bus: Bus ID must not be negative");
+    }
+
     sensorInterface = objectServer.add_interface(
         "/xyz/openbmc_project/sensors/temperature/" + name,
         "xyz.openbmc_project.Sensor.Value");
@@ -63,6 +68,21 @@ NVMeSensor::~NVMeSensor()
     objServer.remove_interface(thresholdInterfaceCritical);
     objServer.remove_interface(sensorInterface);
     objServer.remove_interface(association);
+}
+
+bool NVMeSensor::sample()
+{
+    if (inError())
+    {
+        if (scanDelay == 0)
+        {
+            scanDelay = scanDelayTicks;
+        }
+
+        scanDelay--;
+    }
+
+    return scanDelay == 0;
 }
 
 void NVMeSensor::checkThresholds(void)
