@@ -149,7 +149,7 @@ static ssize_t processBasicQueryStream(int in, int out)
                 std::cerr << "Failed to read request from in descriptor ("
                           << std::dec << in << "): " << strerror(errno) << "\n";
             }
-            goto done;
+            return rc;
         }
 
         decodeBasicQuery(req, bus, device, offset);
@@ -182,7 +182,7 @@ static ssize_t processBasicQueryStream(int in, int out)
             std::cerr << "Failed to write block (" << std::dec << len
                       << ") length to out descriptor (" << std::dec << out
                       << "): " << strerror(-rc) << "\n";
-            goto done;
+            return rc;
         }
 
         /* Write out the response data */
@@ -196,28 +196,13 @@ static ssize_t processBasicQueryStream(int in, int out)
                 rc = -errno;
                 std::cerr << "Failed to write block data of length " << std::dec
                           << len << " to out pipe: " << strerror(errno) << "\n";
-                goto done;
+                return rc;
             }
 
             cursor += egress;
             len -= egress;
         }
     }
-
-done:
-    if (::close(in) == -1)
-    {
-        std::cerr << "Failed to close in descriptor " << std::dec << in << ": "
-                  << strerror(errno) << "\n";
-    }
-
-    if (::close(out) == -1)
-    {
-        std::cerr << "Failed to close out descriptor " << std::dec << in << ": "
-                  << strerror(errno) << "\n";
-    }
-
-    return rc;
 }
 
 /* Throws std::error_code on failure */
