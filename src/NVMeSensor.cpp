@@ -16,6 +16,7 @@
 
 #include <NVMeSensor.hpp>
 
+#include <filesystem>
 #include <iostream>
 
 static constexpr double maxReading = 127;
@@ -65,6 +66,53 @@ NVMeSensor::~NVMeSensor()
     }
     objServer.remove_interface(sensorInterface);
     objServer.remove_interface(association);
+}
+
+void NVMeSensor::createAssociation()
+{
+    std::filesystem::path p(configurationPath);
+    dbusConnection->async_method_call(
+        [association = association,
+         configurationPath = this->configurationPath](
+            const boost::system::error_code ec,
+            const std::variant<std::vector<Association>>& envelope) {
+        if (ec == boost::asio::error::operation_aborted)
+        {
+            return;
+        }
+
+        if (ec)
+        {
+            std::cerr << "Error getting inventory association for "
+                      << configurationPath << ": " << ec.message() << "\n";
+            return;
+        }
+
+        std::vector<Association> sensorAssociations = {
+            {
+                "chassis",
+                "all_sensors",
+                "/xyz/openbmc_project/inventory/system/chassis",
+            },
+        };
+
+        auto configAssociations = std::get<std::vector<Association>>(envelope);
+        for (const auto& entry : configAssociations)
+        {
+            if (std::get<0>(entry) == "probed_by")
+            {
+                const auto& invPath = std::get<2>(entry);
+                sensorAssociations.emplace_back("inventory", "sensors",
+                                                invPath);
+            }
+        }
+
+        association->register_property("Associations", sensorAssociations);
+        association->initialize();
+        },
+        entityManagerName, p.parent_path().string(),
+        "org.freedesktop.DBus.Properties", "Get", association::interface,
+        "Associations");
 }
 
 bool NVMeSensor::sample()
