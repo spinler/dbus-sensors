@@ -218,6 +218,11 @@ struct Sensor
         return 1;
     }
 
+    virtual void createAssociation()
+    {
+        ::createAssociation(association, configurationPath);
+    }
+
     void
         setInitialProperties(std::shared_ptr<sdbusplus::asio::connection>& conn,
                              const std::string& unit,
@@ -226,7 +231,7 @@ struct Sensor
     {
         setupPowerMatch(conn);
 
-        createAssociation(association, configurationPath);
+        createAssociation();
 
         sensorInterface->register_property("Unit", unit);
         sensorInterface->register_property("MaxValue", maxValue);
