@@ -14,7 +14,6 @@
 #include <cstdio>
 #include <cstring>
 #include <system_error>
-#include <thread>
 
 extern "C"
 {
@@ -246,7 +245,7 @@ NVMeBasicContext::NVMeBasicContext(boost::asio::io_service& io, int rootBus) :
     int streamOut = responsePipe[1];
     respStream.assign(responsePipe[0]);
 
-    std::thread thread([streamIn, streamOut]() {
+    thread = std::thread([streamIn, streamOut]() {
         ssize_t rc;
 
         if ((rc = processBasicQueryStream(streamIn, streamOut)) < 0)
@@ -269,7 +268,22 @@ NVMeBasicContext::NVMeBasicContext(boost::asio::io_service& io, int rootBus) :
 
         std::cerr << "Terminating basic query thread\n";
     });
-    thread.detach();
+}
+
+NVMeBasicContext::~NVMeBasicContext()
+{
+    // Close the request stream to allow exit from the IO thread via a read() fail
+    reqStream.close();
+
+    // Close the response stream to allow exit from the IO thread via a write() fail.
+    //
+    // More importantly, cause the callback lambda to execute immediately with an error condition.
+    // This takes the std::shared_ptr<NVMeSensor> out of scope, and the DBus objects will go with it
+    // once the sensor is dropped from the sensors list.
+    respStream.close();
+
+    // Synchronise on thread exit to make sure we've completed the cleanup
+    thread.join();
 }
 
 void NVMeBasicContext::readAndProcessNVMeSensor()
@@ -351,7 +365,7 @@ void NVMeBasicContext::readAndProcessNVMeSensor()
             response->prepare(len);
             return len;
         },
-        [self{shared_from_this()}, sensor, response](
+        [this, sensor, response](
             const boost::system::error_code& ec, std::size_t length) mutable {
             if (ec)
             {
@@ -372,10 +386,10 @@ void NVMeBasicContext::readAndProcessNVMeSensor()
             is.read(data.data(), response->size());
 
             /* Update the sensor */
-            self->processResponse(sensor, data.data(), data.size());
+            processResponse(sensor, data.data(), data.size());
 
             /* Enqueue processing of the next sensor */
-            self->readAndProcessNVMeSensor();
+            readAndProcessNVMeSensor();
         });
 }
 
@@ -385,7 +399,7 @@ void NVMeBasicContext::pollNVMeDevices()
 
     scanTimer.expires_from_now(boost::posix_time::seconds(1));
     scanTimer.async_wait(
-        [self{shared_from_this()}](const boost::system::error_code errorCode) {
+        [this](const boost::system::error_code errorCode) {
             if (errorCode == boost::asio::error::operation_aborted)
             {
                 return;
@@ -397,7 +411,7 @@ void NVMeBasicContext::pollNVMeDevices()
                 return;
             }
 
-            self->readAndProcessNVMeSensor();
+            readAndProcessNVMeSensor();
         });
 }
 

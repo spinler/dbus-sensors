@@ -5,19 +5,21 @@
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/posix/stream_descriptor.hpp>
 
+#include <thread>
+
 class NVMeBasicContext : public NVMeContext
 {
   public:
     NVMeBasicContext(boost::asio::io_service& io, int rootBus);
-    ~NVMeBasicContext() override = default;
+    ~NVMeBasicContext() override;
     void pollNVMeDevices() override;
     void readAndProcessNVMeSensor() override;
     void processResponse(std::shared_ptr<NVMeSensor>& sensor, void* msg,
                          size_t len) override;
-
   private:
     NVMeBasicContext(boost::asio::io_service& io, int rootBus, int cmdOut,
                      int streamIn, int streamOut, int cmdIn);
+    std::thread thread;
     boost::asio::io_service& io;
     boost::asio::posix::stream_descriptor reqStream;
     boost::asio::posix::stream_descriptor respStream;

@@ -91,7 +91,7 @@ static std::optional<int> deriveRootBus(std::optional<int> busNumber)
     return std::stoi(rootName.substr(0, dash));
 }
 
-static std::shared_ptr<NVMeContext>
+static std::unique_ptr<NVMeContext>&
     provideRootBusContext(boost::asio::io_service& io, NVMEMap& map,
                           int rootBus)
 {
@@ -101,11 +101,9 @@ static std::shared_ptr<NVMeContext>
         return findRoot->second;
     }
 
-    std::shared_ptr<NVMeContext> context =
-        std::make_shared<NVMeBasicContext>(io, rootBus);
-    map[rootBus] = context;
+    map[rootBus] = std::make_unique<NVMeBasicContext>(io, rootBus);
 
-    return context;
+    return map[rootBus];
 }
 
 static void handleSensorConfigurations(
@@ -113,14 +111,9 @@ static void handleSensorConfigurations(
     std::shared_ptr<sdbusplus::asio::connection>& dbusConnection,
     const ManagedObjectType& sensorConfigurations)
 {
-    // todo: it'd be better to only update the ones we care about
-    for (const auto& [_, nvmeContextPtr] : nvmeDeviceMap)
-    {
-        if (nvmeContextPtr)
-        {
-            nvmeContextPtr->close();
-        }
-    }
+    // Destroy the contexts, removing their associated sensors from DBus
+    //
+    // TODO: it'd be better to only update the ones we care about
     nvmeDeviceMap.clear();
 
     // iterate through all found configurations
@@ -152,7 +145,7 @@ static void handleSensorConfigurations(
             try
             {
                 // May throw for an invalid rootBus
-                std::shared_ptr<NVMeContext> context =
+                std::unique_ptr<NVMeContext>& context =
                     provideRootBusContext(io, nvmeDeviceMap, *rootBus);
 
                 // Construct the sensor after grabbing the context so we don't
