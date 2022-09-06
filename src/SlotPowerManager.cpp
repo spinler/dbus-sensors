@@ -99,16 +99,32 @@ void SlotPowerManager::getDeviceConfigs(
             const auto& owner = std::get<std::string>(ownerIt->second);
             if (owner != "PCIeSlot")
             {
-                std::cerr << "Invalid PowerStateOwner type: " << owner
-                          << " in entity-manager config\n";
+                error("Invalid PowerStateOwner type: {OWNER} in entity-manager "
+                      "config",
+                      "OWNER", owner);
                 continue;
             }
 
             auto locCodeIt = config.find("LocationCode");
             if (locCodeIt == config.end())
             {
-                std::cerr << "Missing LocationCode entry on " << objectPath.str
-                          << "\n";
+                error("Missing LocationCode entry on {PATH}", "PATH",
+                      objectPath.str);
+                continue;
+            }
+
+            if (!config.contains("Bus") || !config.contains("Address"))
+            {
+                error("Missing Bus or Address for {PATH}", "PATH",
+                      objectPath.str);
+                continue;
+            }
+
+            if (!std::get_if<uint64_t>(&config.at("Bus")) ||
+                !std::get_if<uint64_t>(&config.at("Address")))
+            {
+                error("Invalid Bus or Address for {PATH}", "PATH",
+                      objectPath.str);
                 continue;
             }
 
