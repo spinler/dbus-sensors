@@ -349,6 +349,7 @@ int main()
     });
 
     boost::asio::deadline_timer filterTimer(io);
+    boost::asio::deadline_timer cpuFilterTimer(io);
     std::function<void(sdbusplus::message::message&)> eventHandler =
         [&](sdbusplus::message::message& message) {
             if (message.is_method_error())
@@ -406,9 +407,9 @@ int main()
             }
 
             // this implicitly cancels the timer
-            filterTimer.expires_from_now(boost::posix_time::seconds(1));
+            cpuFilterTimer.expires_from_now(boost::posix_time::seconds(1));
 
-            filterTimer.async_wait([&](const boost::system::error_code& ec) {
+            cpuFilterTimer.async_wait([&](const boost::system::error_code& ec) {
                 if (ec == boost::asio::error::operation_aborted)
                 {
                     /* we were canceled*/
