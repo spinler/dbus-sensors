@@ -18,6 +18,8 @@ class NVMeSensor : public Sensor
 
     NVMeSensor& operator=(const NVMeSensor& other) = delete;
 
+    void createAssociation() override;
+
     bool sample();
 
     int bus;
