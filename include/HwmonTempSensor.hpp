@@ -32,13 +32,25 @@ class HwmonTempSensor :
                     const struct SensorParams& thisSensorParameters,
                     float pollRate, const std::string& sensorConfiguration,
                     PowerState powerState,
-                    const std::shared_ptr<I2CDevice>& i2cDevice);
+                    const std::shared_ptr<I2CDevice>& i2cDevice, size_t bus,
+                    size_t address);
     ~HwmonTempSensor() override;
     void setupRead(void);
     void activate(const std::string& newPath,
                   const std::shared_ptr<I2CDevice>& newI2CDevice);
     void deactivate(void);
     bool isActive(void);
+
+    std::shared_ptr<I2CDevice> getI2CDevice() const
+    {
+        return i2cDevice;
+    }
+
+    // Clears the history of failed reads
+    static void clearFailedDevices();
+
+    // Create an event log for a failed read
+    void createEventLog();
 
   private:
     // Ordering is important here; readBuf is first so that it's not destroyed
@@ -52,6 +64,14 @@ class HwmonTempSensor :
     double offsetValue;
     double scaleValue;
     unsigned int sensorPollMs;
+    size_t bus;
+    size_t address;
+
+    // pair<bus, address> of devices with logged failed reads
+    static std::vector<std::pair<size_t, size_t>> failedDevices;
+
+    // The error code from the last HW access for the sensor.
+    boost::system::error_code errorCode;
 
     void handleResponse(const boost::system::error_code& err, size_t bytesRead);
     void restartRead();
