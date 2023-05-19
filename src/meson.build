@@ -150,8 +150,12 @@ if get_option('nvme').enabled()
     nvme_srcs += files('NVMeBasicContext.cpp')
 
     nvme_deps = [
+        boost,
         default_deps,
         i2c,
+        nlohmann_json,
+        phosphor_logging_dep,
+        sdbusplus,
         threads,
         thresholds_dep,
         utils_dep
@@ -161,7 +165,6 @@ if get_option('nvme').enabled()
         'nvmesensor',
         sources: nvme_srcs,
         dependencies: nvme_deps,
-        cpp_args: uring_args,
         implicit_include_directories: false,
         include_directories: '../include',
         install: true,
