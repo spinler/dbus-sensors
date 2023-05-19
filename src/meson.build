@@ -149,7 +149,13 @@ if get_option('nvme').enabled()
     nvme_srcs = files('NVMeSensorMain.cpp', 'NVMeSensor.cpp')
     nvme_srcs += files('NVMeBasicContext.cpp')
 
-    nvme_deps = [ default_deps, i2c, thresholds_dep, utils_dep, threads ]
+    nvme_deps = [
+        default_deps,
+        i2c,
+        threads,
+        thresholds_dep,
+        utils_dep
+    ]
 
     executable(
         'nvmesensor',
