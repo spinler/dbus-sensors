@@ -443,7 +443,12 @@ void createSensors(
             }
 
             const SensorData& sensorData = findSensorCfg->second.sensorData;
-            const std::string& sensorType = findSensorCfg->second.interface;
+            std::string sensorType = findSensorCfg->second.interface;
+            auto pos = sensorType.find_last_of('.');
+            if (pos != std::string::npos)
+            {
+                sensorType = sensorType.substr(pos + 1);
+            }
             const SensorBaseConfigMap& baseConfigMap =
                 findSensorCfg->second.config;
             std::vector<std::string>& hwmonName = findSensorCfg->second.name;
@@ -631,7 +636,7 @@ void interfaceRemoved(
     {
         if ((sensorIt->second->configurationPath == path) &&
             (std::find(interfaces.begin(), interfaces.end(),
-                       sensorIt->second->objectType) != interfaces.end()))
+                       sensorIt->second->configInterface) != interfaces.end()))
         {
             sensorIt = sensors.erase(sensorIt);
         }
