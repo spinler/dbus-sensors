@@ -2,7 +2,7 @@
 
 #include <DeviceMgmt.hpp>
 #include <Thresholds.hpp>
-#include <boost/asio/random_access_file.hpp>
+#include <boost/asio/streambuf.hpp>
 #include <sdbusplus/asio/object_server.hpp>
 #include <sensor.hpp>
 
@@ -53,13 +53,11 @@ class HwmonTempSensor :
     void createEventLog();
 
   private:
-    // Ordering is important here; readBuf is first so that it's not destroyed
-    // while async operations from other member fields might still be using it.
-    std::array<char, 128> readBuf{};
     std::shared_ptr<I2CDevice> i2cDevice;
     sdbusplus::asio::object_server& objServer;
-    boost::asio::random_access_file inputDev;
+    boost::asio::posix::stream_descriptor inputDev;
     boost::asio::steady_timer waitTimer;
+    boost::asio::streambuf readBuf;
     std::string path;
     double offsetValue;
     double scaleValue;
@@ -73,7 +71,7 @@ class HwmonTempSensor :
     // The error code from the last HW access for the sensor.
     boost::system::error_code errorCode;
 
-    void handleResponse(const boost::system::error_code& err, size_t bytesRead);
+    void handleResponse(const boost::system::error_code& err);
     void restartRead();
     void checkThresholds(void) override;
 };

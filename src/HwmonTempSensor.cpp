@@ -23,7 +23,6 @@
 #include <sdbusplus/asio/connection.hpp>
 #include <sdbusplus/asio/object_server.hpp>
 
-#include <charconv>
 #include <iostream>
 #include <istream>
 #include <limits>
@@ -56,13 +55,21 @@ HwmonTempSensor::HwmonTempSensor(
            std::move(thresholdsIn), sensorConfiguration, objectType, false,
            false, thisSensorParameters.maxValue, thisSensorParameters.minValue,
            conn, powerState),
-    i2cDevice(i2cDevice), objServer(objectServer),
-    inputDev(io, path, boost::asio::random_access_file::read_only),
-    waitTimer(io), path(path), offsetValue(thisSensorParameters.offsetValue),
+    i2cDevice(i2cDevice), objServer(objectServer), inputDev(io), waitTimer(io),
+    path(path), offsetValue(thisSensorParameters.offsetValue),
     scaleValue(thisSensorParameters.scaleValue),
     sensorPollMs(static_cast<unsigned int>(pollRate * 1000)), bus(bus),
     address(address)
 {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    int fd = open(path.c_str(), O_RDONLY);
+    if (fd < 0)
+    {
+        std::cerr << "HwmonTempSensor " << sensorName << " failed to open "
+                  << path << "\n";
+    }
+    inputDev.assign(fd);
+
     sensorInterface = objectServer.add_interface(
         "/xyz/openbmc_project/sensors/" + thisSensorParameters.typeName + "/" +
             name,
@@ -94,7 +101,17 @@ void HwmonTempSensor::activate(const std::string& newPath,
 {
     path = newPath;
     i2cDevice = newI2CDevice;
-    inputDev.open(path, boost::asio::random_access_file::read_only);
+
+    inputDev.close();
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    int fd = open(path.c_str(), O_RDONLY);
+    if (fd < 0)
+    {
+        std::cerr << "Hwmon temp sensor " << name << " not valid " << path
+                  << "\n";
+        return; // we're no longer valid
+    }
+    inputDev.assign(fd);
     markAvailable(true);
     setupRead();
 }
@@ -132,15 +149,15 @@ void HwmonTempSensor::setupRead(void)
     }
 
     std::weak_ptr<HwmonTempSensor> weakRef = weak_from_this();
-    inputDev.async_read_some_at(
-        0, boost::asio::buffer(readBuf),
-        [weakRef](const boost::system::error_code& ec, std::size_t bytesRead) {
+    boost::asio::async_read_until(inputDev, readBuf, '\n',
+                                  [weakRef](const boost::system::error_code& ec,
+                                            std::size_t /*bytes_transfered*/) {
         std::shared_ptr<HwmonTempSensor> self = weakRef.lock();
         if (self)
         {
-            self->handleResponse(ec, bytesRead);
+            self->handleResponse(ec);
         }
-        });
+    });
 }
 
 void HwmonTempSensor::restartRead()
@@ -161,8 +178,7 @@ void HwmonTempSensor::restartRead()
     });
 }
 
-void HwmonTempSensor::handleResponse(const boost::system::error_code& err,
-                                     size_t bytesRead)
+void HwmonTempSensor::handleResponse(const boost::system::error_code& err)
 {
     errorCode = err;
     if ((err == boost::system::errc::bad_file_descriptor) ||
@@ -172,14 +188,18 @@ void HwmonTempSensor::handleResponse(const boost::system::error_code& err,
                   << "\n";
         return; // we're being destroyed
     }
-
+    std::istream responseStream(&readBuf);
     if (!err)
     {
-        const char* bufEnd = readBuf.data() + bytesRead;
-        int nvalue = 0;
-        std::from_chars_result ret =
-            std::from_chars(readBuf.data(), bufEnd, nvalue);
-        if (ret.ec != std::errc())
+        std::string response;
+        std::getline(responseStream, response);
+        try
+        {
+            rawValue = std::stod(response);
+            double nvalue = (rawValue + offsetValue) * scaleValue;
+            updateValue(nvalue);
+        }
+        catch (const std::invalid_argument&)
         {
             if (incrementError())
             {
@@ -187,10 +207,6 @@ void HwmonTempSensor::handleResponse(const boost::system::error_code& err,
                     boost::system::errc::invalid_argument);
                 createEventLog();
             }
-        }
-        else
-        {
-            updateValue((nvalue + offsetValue) * scaleValue);
         }
     }
     else
@@ -201,6 +217,18 @@ void HwmonTempSensor::handleResponse(const boost::system::error_code& err,
         }
     }
 
+    responseStream.clear();
+    inputDev.close();
+
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    int fd = open(path.c_str(), O_RDONLY);
+    if (fd < 0)
+    {
+        std::cerr << "Hwmon temp sensor " << name << " not valid " << path
+                  << "\n";
+        return; // we're no longer valid
+    }
+    inputDev.assign(fd);
     restartRead();
 }
 
