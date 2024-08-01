@@ -87,7 +87,6 @@ if get_option('hwmon-temp').enabled()
             thresholds_dep,
             utils_dep,
         ],
-        cpp_args: uring_args,
         implicit_include_directories: false,
         include_directories: '../include',
         install: true,
